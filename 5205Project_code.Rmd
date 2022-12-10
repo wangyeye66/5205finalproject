@@ -1,0 +1,634 @@
+---
+title: "5205 Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+install.packages("dplyr")
+install.packages("mosaic")
+install.packages("haven")
+install.packages("readstata13")
+install.packages("ggplot2")
+install.packages("lubridate")
+install.packages("olsrr")
+library("olsrr")
+# Load the package
+library(lubridate)
+library(dplyr)  # to use the filter and select command
+library(mosaic) # we will use favstats command 
+library(haven)  # needed to read stata .dta files 
+library(readstata13)
+library(ggplot2)
+library(stats)
+
+
+inUrl1  <- "https://pasta.lternet.edu/package/data/eml/edi/256/1/80ccde946dc44c2e4f349084b5eca251" 
+infile1 <- tempfile()
+try(download.file(inUrl1,infile1,method="curl"))
+if (is.na(file.size(infile1))) download.file(inUrl1,infile1,method="auto")
+
+
+dt1 <-read.csv(infile1,header=F 
+               ,skip=1
+               ,sep=","  
+               , col.names=c(
+                 "Site",     
+                 "Date",     
+                 "Depth",     
+                 "DissolvedOxygen",     
+                 "Light",     
+                 "Temperature"    ), check.names=TRUE)
+
+unlink(infile1)
+
+# Fix any interval or ratio columns mistakenly read in as nominal and nominal columns read as numeric or dates read as strings
+
+if (class(dt1$Site)!="factor") dt1$Site<- as.factor(dt1$Site)                                   
+# attempting to convert dt1$Date dateTime string to R date structure (date or POSIXct)                                
+tmpDateFormat<-"%Y-%m-%d"
+tmp1Date<-as.Date(dt1$Date,format=tmpDateFormat)
+# Keep the new dates only if they all converted correctly
+if(length(tmp1Date) == length(tmp1Date[!is.na(tmp1Date)])){dt1$Date <- tmp1Date } else {print("Date conversion failed for dt1$Date. Please inspect the data and do the date conversion yourself.")}                                                                    
+rm(tmpDateFormat,tmp1Date) 
+if (class(dt1$Depth)=="factor") dt1$Depth <-as.numeric(levels(dt1$Depth))[as.integer(dt1$Depth) ]               
+if (class(dt1$Depth)=="character") dt1$Depth <-as.numeric(dt1$Depth)
+if (class(dt1$DissolvedOxygen)=="factor") dt1$DissolvedOxygen <-as.numeric(levels(dt1$DissolvedOxygen))[as.integer(dt1$DissolvedOxygen) ]               
+if (class(dt1$DissolvedOxygen)=="character") dt1$DissolvedOxygen <-as.numeric(dt1$DissolvedOxygen)
+if (class(dt1$Light)=="factor") dt1$Light <-as.numeric(levels(dt1$Light))[as.integer(dt1$Light) ]               
+if (class(dt1$Light)=="character") dt1$Light <-as.numeric(dt1$Light)
+if (class(dt1$Temperature)=="factor") dt1$Temperature <-as.numeric(levels(dt1$Temperature))[as.integer(dt1$Temperature) ]               
+if (class(dt1$Temperature)=="character") dt1$Temperature <-as.numeric(dt1$Temperature)
+
+# Convert Missing Values to NA for non-dates
+
+dt1$DissolvedOxygen <- ifelse((trimws(as.character(dt1$DissolvedOxygen))==trimws("NA")),NA,dt1$DissolvedOxygen)               
+suppressWarnings(dt1$DissolvedOxygen <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt1$DissolvedOxygen))==as.character(as.numeric("NA"))),NA,dt1$DissolvedOxygen))
+dt1$Light <- ifelse((trimws(as.character(dt1$Light))==trimws("NA")),NA,dt1$Light)               
+suppressWarnings(dt1$Light <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt1$Light))==as.character(as.numeric("NA"))),NA,dt1$Light))
+dt1$Temperature <- ifelse((trimws(as.character(dt1$Temperature))==trimws("NA")),NA,dt1$Temperature)               
+suppressWarnings(dt1$Temperature <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt1$Temperature))==as.character(as.numeric("NA"))),NA,dt1$Temperature))
+
+
+# Here is the structure of the input data frame:
+str(dt1)                            
+attach(dt1)                            
+# The analyses below are basic descriptions of the variables. After testing, they should be replaced.                 
+
+summary(Site)
+summary(Date)
+summary(Depth)
+summary(DissolvedOxygen)
+summary(Light)
+summary(Temperature) 
+# Get more details on character variables
+
+summary(as.factor(dt1$Site))
+detach(dt1)               
+
+
+inUrl2  <- "https://pasta.lternet.edu/package/data/eml/edi/256/1/9d22d24338516635a504290fef69fa0b" 
+infile2 <- tempfile()
+try(download.file(inUrl2,infile2,method="curl"))
+if (is.na(file.size(infile2))) download.file(inUrl2,infile2,method="auto")
+
+
+dt2 <-read.csv(infile2,header=F 
+               ,skip=1
+               ,sep=","  
+               , col.names=c(
+                 "Site",     
+                 "Date",     
+                 "Secchi",     
+                 "LarvalFishDensity",     
+                 "IntegratedSamplingDepth",     
+                 "Chlorophyll_a",     
+                 "SuspendedSolids",     
+                 "NonvolatileSuspendedSolids",     
+                 "ParticulateC",     
+                 "ParticulateN",     
+                 "ParticulateP",     
+                 "TotalNitrogen",     
+                 "TotalPhosphorus",     
+                 "ZooplanktonDepth",     
+                 "TotalZooplankton"    ), check.names=TRUE)
+
+unlink(infile2)
+
+# Fix any interval or ratio columns mistakenly read in as nominal and nominal columns read as numeric or dates read as strings
+
+if (class(dt2$Site)!="factor") dt2$Site<- as.factor(dt2$Site)                                   
+# attempting to convert dt2$Date dateTime string to R date structure (date or POSIXct)                                
+tmpDateFormat<-"%Y-%m-%d"
+tmp2Date<-as.Date(dt2$Date,format=tmpDateFormat)
+# Keep the new dates only if they all converted correctly
+if(length(tmp2Date) == length(tmp2Date[!is.na(tmp2Date)])){dt2$Date <- tmp2Date } else {print("Date conversion failed for dt2$Date. Please inspect the data and do the date conversion yourself.")}                                                                    
+rm(tmpDateFormat,tmp2Date) 
+if (class(dt2$Secchi)=="factor") dt2$Secchi <-as.numeric(levels(dt2$Secchi))[as.integer(dt2$Secchi) ]               
+if (class(dt2$Secchi)=="character") dt2$Secchi <-as.numeric(dt2$Secchi)
+if (class(dt2$LarvalFishDensity)=="factor") dt2$LarvalFishDensity <-as.numeric(levels(dt2$LarvalFishDensity))[as.integer(dt2$LarvalFishDensity) ]               
+if (class(dt2$LarvalFishDensity)=="character") dt2$LarvalFishDensity <-as.numeric(dt2$LarvalFishDensity)
+if (class(dt2$IntegratedSamplingDepth)=="factor") dt2$IntegratedSamplingDepth <-as.numeric(levels(dt2$IntegratedSamplingDepth))[as.integer(dt2$IntegratedSamplingDepth) ]               
+if (class(dt2$IntegratedSamplingDepth)=="character") dt2$IntegratedSamplingDepth <-as.numeric(dt2$IntegratedSamplingDepth)
+if (class(dt2$Chlorophyll_a)=="factor") dt2$Chlorophyll_a <-as.numeric(levels(dt2$Chlorophyll_a))[as.integer(dt2$Chlorophyll_a) ]               
+if (class(dt2$Chlorophyll_a)=="character") dt2$Chlorophyll_a <-as.numeric(dt2$Chlorophyll_a)
+if (class(dt2$SuspendedSolids)=="factor") dt2$SuspendedSolids <-as.numeric(levels(dt2$SuspendedSolids))[as.integer(dt2$SuspendedSolids) ]               
+if (class(dt2$SuspendedSolids)=="character") dt2$SuspendedSolids <-as.numeric(dt2$SuspendedSolids)
+if (class(dt2$NonvolatileSuspendedSolids)=="factor") dt2$NonvolatileSuspendedSolids <-as.numeric(levels(dt2$NonvolatileSuspendedSolids))[as.integer(dt2$NonvolatileSuspendedSolids) ]               
+if (class(dt2$NonvolatileSuspendedSolids)=="character") dt2$NonvolatileSuspendedSolids <-as.numeric(dt2$NonvolatileSuspendedSolids)
+if (class(dt2$ParticulateC)=="factor") dt2$ParticulateC <-as.numeric(levels(dt2$ParticulateC))[as.integer(dt2$ParticulateC) ]               
+if (class(dt2$ParticulateC)=="character") dt2$ParticulateC <-as.numeric(dt2$ParticulateC)
+if (class(dt2$ParticulateN)=="factor") dt2$ParticulateN <-as.numeric(levels(dt2$ParticulateN))[as.integer(dt2$ParticulateN) ]               
+if (class(dt2$ParticulateN)=="character") dt2$ParticulateN <-as.numeric(dt2$ParticulateN)
+if (class(dt2$ParticulateP)=="factor") dt2$ParticulateP <-as.numeric(levels(dt2$ParticulateP))[as.integer(dt2$ParticulateP) ]               
+if (class(dt2$ParticulateP)=="character") dt2$ParticulateP <-as.numeric(dt2$ParticulateP)
+if (class(dt2$TotalNitrogen)=="factor") dt2$TotalNitrogen <-as.numeric(levels(dt2$TotalNitrogen))[as.integer(dt2$TotalNitrogen) ]               
+if (class(dt2$TotalNitrogen)=="character") dt2$TotalNitrogen <-as.numeric(dt2$TotalNitrogen)
+if (class(dt2$TotalPhosphorus)=="factor") dt2$TotalPhosphorus <-as.numeric(levels(dt2$TotalPhosphorus))[as.integer(dt2$TotalPhosphorus) ]               
+if (class(dt2$TotalPhosphorus)=="character") dt2$TotalPhosphorus <-as.numeric(dt2$TotalPhosphorus)
+if (class(dt2$ZooplanktonDepth)=="factor") dt2$ZooplanktonDepth <-as.numeric(levels(dt2$ZooplanktonDepth))[as.integer(dt2$ZooplanktonDepth) ]               
+if (class(dt2$ZooplanktonDepth)=="character") dt2$ZooplanktonDepth <-as.numeric(dt2$ZooplanktonDepth)
+if (class(dt2$TotalZooplankton)=="factor") dt2$TotalZooplankton <-as.numeric(levels(dt2$TotalZooplankton))[as.integer(dt2$TotalZooplankton) ]               
+if (class(dt2$TotalZooplankton)=="character") dt2$TotalZooplankton <-as.numeric(dt2$TotalZooplankton)
+
+# Convert Missing Values to NA for non-dates
+
+dt2$Secchi <- ifelse((trimws(as.character(dt2$Secchi))==trimws("NA")),NA,dt2$Secchi)               
+suppressWarnings(dt2$Secchi <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$Secchi))==as.character(as.numeric("NA"))),NA,dt2$Secchi))
+dt2$LarvalFishDensity <- ifelse((trimws(as.character(dt2$LarvalFishDensity))==trimws("NA")),NA,dt2$LarvalFishDensity)               
+suppressWarnings(dt2$LarvalFishDensity <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$LarvalFishDensity))==as.character(as.numeric("NA"))),NA,dt2$LarvalFishDensity))
+dt2$IntegratedSamplingDepth <- ifelse((trimws(as.character(dt2$IntegratedSamplingDepth))==trimws("NA")),NA,dt2$IntegratedSamplingDepth)               
+suppressWarnings(dt2$IntegratedSamplingDepth <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$IntegratedSamplingDepth))==as.character(as.numeric("NA"))),NA,dt2$IntegratedSamplingDepth))
+dt2$Chlorophyll_a <- ifelse((trimws(as.character(dt2$Chlorophyll_a))==trimws("NA")),NA,dt2$Chlorophyll_a)               
+suppressWarnings(dt2$Chlorophyll_a <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$Chlorophyll_a))==as.character(as.numeric("NA"))),NA,dt2$Chlorophyll_a))
+dt2$SuspendedSolids <- ifelse((trimws(as.character(dt2$SuspendedSolids))==trimws("NA")),NA,dt2$SuspendedSolids)               
+suppressWarnings(dt2$SuspendedSolids <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$SuspendedSolids))==as.character(as.numeric("NA"))),NA,dt2$SuspendedSolids))
+dt2$NonvolatileSuspendedSolids <- ifelse((trimws(as.character(dt2$NonvolatileSuspendedSolids))==trimws("NA")),NA,dt2$NonvolatileSuspendedSolids)               
+suppressWarnings(dt2$NonvolatileSuspendedSolids <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$NonvolatileSuspendedSolids))==as.character(as.numeric("NA"))),NA,dt2$NonvolatileSuspendedSolids))
+dt2$ParticulateC <- ifelse((trimws(as.character(dt2$ParticulateC))==trimws("NA")),NA,dt2$ParticulateC)               
+suppressWarnings(dt2$ParticulateC <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$ParticulateC))==as.character(as.numeric("NA"))),NA,dt2$ParticulateC))
+dt2$ParticulateN <- ifelse((trimws(as.character(dt2$ParticulateN))==trimws("NA")),NA,dt2$ParticulateN)               
+suppressWarnings(dt2$ParticulateN <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$ParticulateN))==as.character(as.numeric("NA"))),NA,dt2$ParticulateN))
+dt2$ParticulateP <- ifelse((trimws(as.character(dt2$ParticulateP))==trimws("NA")),NA,dt2$ParticulateP)               
+suppressWarnings(dt2$ParticulateP <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$ParticulateP))==as.character(as.numeric("NA"))),NA,dt2$ParticulateP))
+dt2$TotalNitrogen <- ifelse((trimws(as.character(dt2$TotalNitrogen))==trimws("NA")),NA,dt2$TotalNitrogen)               
+suppressWarnings(dt2$TotalNitrogen <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$TotalNitrogen))==as.character(as.numeric("NA"))),NA,dt2$TotalNitrogen))
+dt2$TotalPhosphorus <- ifelse((trimws(as.character(dt2$TotalPhosphorus))==trimws("NA")),NA,dt2$TotalPhosphorus)               
+suppressWarnings(dt2$TotalPhosphorus <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$TotalPhosphorus))==as.character(as.numeric("NA"))),NA,dt2$TotalPhosphorus))
+dt2$ZooplanktonDepth <- ifelse((trimws(as.character(dt2$ZooplanktonDepth))==trimws("NA")),NA,dt2$ZooplanktonDepth)               
+suppressWarnings(dt2$ZooplanktonDepth <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$ZooplanktonDepth))==as.character(as.numeric("NA"))),NA,dt2$ZooplanktonDepth))
+dt2$TotalZooplankton <- ifelse((trimws(as.character(dt2$TotalZooplankton))==trimws("NA")),NA,dt2$TotalZooplankton)               
+suppressWarnings(dt2$TotalZooplankton <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt2$TotalZooplankton))==as.character(as.numeric("NA"))),NA,dt2$TotalZooplankton))
+
+
+# Here is the structure of the input data frame:
+str(dt2)                            
+attach(dt2)                            
+# The analyses below are basic descriptions of the variables. After testing, they should be replaced.                 
+
+summary(Site)
+summary(Date)
+summary(Secchi)
+summary(LarvalFishDensity)
+summary(IntegratedSamplingDepth)
+summary(Chlorophyll_a)
+summary(SuspendedSolids)
+summary(NonvolatileSuspendedSolids)
+summary(ParticulateC)
+summary(ParticulateN)
+summary(ParticulateP)
+summary(TotalNitrogen)
+summary(TotalPhosphorus)
+summary(ZooplanktonDepth)
+summary(TotalZooplankton) 
+# Get more details on character variables
+
+summary(as.factor(dt2$Site))
+detach(dt2)               
+
+
+inUrl3  <- "https://pasta.lternet.edu/package/data/eml/edi/256/1/7bc5a642e46c2b1abfed0c300da69d09" 
+infile3 <- tempfile()
+try(download.file(inUrl3,infile3,method="curl"))
+if (is.na(file.size(infile3))) download.file(inUrl3,infile3,method="auto")
+
+
+dt3 <-read.csv(infile3,header=F 
+               ,skip=1
+               ,sep=","  
+               , col.names=c(
+                 "Site",     
+                 "DateTime",     
+                 "DischargeHourly"    ), check.names=TRUE)
+
+unlink(infile3)
+
+# Fix any interval or ratio columns mistakenly read in as nominal and nominal columns read as numeric or dates read as strings
+
+if (class(dt3$Site)!="factor") dt3$Site<- as.factor(dt3$Site)                                   
+# attempting to convert dt3$DateTime dateTime string to R date structure (date or POSIXct)                                
+tmpDateFormat<-"%Y-%m-%d %H:%M" 
+tmp3DateTime<-as.POSIXct(dt3$DateTime,format=tmpDateFormat)
+# Keep the new dates only if they all converted correctly
+if(length(tmp3DateTime) == length(tmp3DateTime[!is.na(tmp3DateTime)])){dt3$DateTime <- tmp3DateTime } else {print("Date conversion failed for dt3$DateTime. Please inspect the data and do the date conversion yourself.")}                                                                    
+rm(tmpDateFormat,tmp3DateTime) 
+if (class(dt3$DischargeHourly)=="factor") dt3$DischargeHourly <-as.numeric(levels(dt3$DischargeHourly))[as.integer(dt3$DischargeHourly) ]               
+if (class(dt3$DischargeHourly)=="character") dt3$DischargeHourly <-as.numeric(dt3$DischargeHourly)
+
+# Convert Missing Values to NA for non-dates
+
+dt3$DischargeHourly <- ifelse((trimws(as.character(dt3$DischargeHourly))==trimws("NA")),NA,dt3$DischargeHourly)               
+suppressWarnings(dt3$DischargeHourly <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt3$DischargeHourly))==as.character(as.numeric("NA"))),NA,dt3$DischargeHourly))
+
+
+# Here is the structure of the input data frame:
+str(dt3)                            
+attach(dt3)                            
+# The analyses below are basic descriptions of the variables. After testing, they should be replaced.                 
+
+summary(Site)
+summary(DateTime)
+summary(DischargeHourly) 
+# Get more details on character variables
+
+summary(as.factor(dt3$Site))
+detach(dt3)               
+
+
+inUrl4  <- "https://pasta.lternet.edu/package/data/eml/edi/256/1/63e0c10806e01e21740377650b89fa0d" 
+infile4 <- tempfile()
+try(download.file(inUrl4,infile4,method="curl"))
+if (is.na(file.size(infile4))) download.file(inUrl4,infile4,method="auto")
+
+
+dt4 <-read.csv(infile4,header=F 
+               ,skip=1
+               ,sep=","  
+               , col.names=c(
+                 "Site",     
+                 "DateTime",     
+                 "Ammonia",     
+                 "Nitrate",     
+                 "SolubleReactivePhosphorus",     
+                 "SuspendedSolids"    ), check.names=TRUE)
+
+unlink(infile4)
+
+# Fix any interval or ratio columns mistakenly read in as nominal and nominal columns read as numeric or dates read as strings
+
+if (class(dt4$Site)!="factor") dt4$Site<- as.factor(dt4$Site)                                   
+# attempting to convert dt4$DateTime dateTime string to R date structure (date or POSIXct)                                
+tmpDateFormat<-"%Y-%m-%d %H:%M" 
+tmp4DateTime<-as.POSIXct(dt4$DateTime,format=tmpDateFormat)
+# Keep the new dates only if they all converted correctly
+if(length(tmp4DateTime) == length(tmp4DateTime[!is.na(tmp4DateTime)])){dt4$DateTime <- tmp4DateTime } else {print("Date conversion failed for dt4$DateTime. Please inspect the data and do the date conversion yourself.")}                                                                    
+rm(tmpDateFormat,tmp4DateTime) 
+if (class(dt4$Ammonia)=="factor") dt4$Ammonia <-as.numeric(levels(dt4$Ammonia))[as.integer(dt4$Ammonia) ]               
+if (class(dt4$Ammonia)=="character") dt4$Ammonia <-as.numeric(dt4$Ammonia)
+if (class(dt4$Nitrate)=="factor") dt4$Nitrate <-as.numeric(levels(dt4$Nitrate))[as.integer(dt4$Nitrate) ]               
+if (class(dt4$Nitrate)=="character") dt4$Nitrate <-as.numeric(dt4$Nitrate)
+if (class(dt4$SolubleReactivePhosphorus)=="factor") dt4$SolubleReactivePhosphorus <-as.numeric(levels(dt4$SolubleReactivePhosphorus))[as.integer(dt4$SolubleReactivePhosphorus) ]               
+if (class(dt4$SolubleReactivePhosphorus)=="character") dt4$SolubleReactivePhosphorus <-as.numeric(dt4$SolubleReactivePhosphorus)
+if (class(dt4$SuspendedSolids)=="factor") dt4$SuspendedSolids <-as.numeric(levels(dt4$SuspendedSolids))[as.integer(dt4$SuspendedSolids) ]               
+if (class(dt4$SuspendedSolids)=="character") dt4$SuspendedSolids <-as.numeric(dt4$SuspendedSolids)
+
+# Convert Missing Values to NA for non-dates
+
+dt4$Ammonia <- ifelse((trimws(as.character(dt4$Ammonia))==trimws("NA")),NA,dt4$Ammonia)               
+suppressWarnings(dt4$Ammonia <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt4$Ammonia))==as.character(as.numeric("NA"))),NA,dt4$Ammonia))
+dt4$Nitrate <- ifelse((trimws(as.character(dt4$Nitrate))==trimws("NA")),NA,dt4$Nitrate)               
+suppressWarnings(dt4$Nitrate <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt4$Nitrate))==as.character(as.numeric("NA"))),NA,dt4$Nitrate))
+dt4$SolubleReactivePhosphorus <- ifelse((trimws(as.character(dt4$SolubleReactivePhosphorus))==trimws("NA")),NA,dt4$SolubleReactivePhosphorus)               
+suppressWarnings(dt4$SolubleReactivePhosphorus <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt4$SolubleReactivePhosphorus))==as.character(as.numeric("NA"))),NA,dt4$SolubleReactivePhosphorus))
+dt4$SuspendedSolids <- ifelse((trimws(as.character(dt4$SuspendedSolids))==trimws("NA")),NA,dt4$SuspendedSolids)               
+suppressWarnings(dt4$SuspendedSolids <- ifelse(!is.na(as.numeric("NA")) & (trimws(as.character(dt4$SuspendedSolids))==as.character(as.numeric("NA"))),NA,dt4$SuspendedSolids))
+
+
+# Here is the structure of the input data frame:
+str(dt4)                            
+attach(dt4)                            
+# The analyses below are basic descriptions of the variables. After testing, they should be replaced.                 
+
+summary(Site)
+summary(DateTime)
+summary(Ammonia)
+summary(Nitrate)
+summary(SolubleReactivePhosphorus)
+summary(SuspendedSolids) 
+# Get more details on character variables
+
+summary(as.factor(dt4$Site))
+detach(dt4)               
+
+
+inUrl5  <- "https://pasta.lternet.edu/package/data/eml/edi/256/1/0c8f547bcc59b4daade296479381d40e" 
+infile5 <- tempfile()
+try(download.file(inUrl5,infile5,method="curl"))
+if (is.na(file.size(infile5))) download.file(inUrl5,infile5,method="auto")
+
+
+dt5 <-read.csv(infile5,header=F 
+               ,skip=1
+               ,sep=","  
+               , col.names=c(
+                 "Site",     
+                 "SiteDescription",     
+                 "Latitude",     
+                 "Longitude"    ), check.names=TRUE)
+
+unlink(infile5)
+
+# Fix any interval or ratio columns mistakenly read in as nominal and nominal columns read as numeric or dates read as strings
+
+if (class(dt5$Site)!="factor") dt5$Site<- as.factor(dt5$Site)
+if (class(dt5$SiteDescription)!="factor") dt5$SiteDescription<- as.factor(dt5$SiteDescription)
+if (class(dt5$Latitude)=="factor") dt5$Latitude <-as.numeric(levels(dt5$Latitude))[as.integer(dt5$Latitude) ]               
+if (class(dt5$Latitude)=="character") dt5$Latitude <-as.numeric(dt5$Latitude)
+if (class(dt5$Longitude)=="factor") dt5$Longitude <-as.numeric(levels(dt5$Longitude))[as.integer(dt5$Longitude) ]               
+if (class(dt5$Longitude)=="character") dt5$Longitude <-as.numeric(dt5$Longitude)
+
+# Convert Missing Values to NA for non-dates
+
+
+
+# Here is the structure of the input data frame:
+str(dt5)                            
+attach(dt5)                            
+# The analyses below are basic descriptions of the variables. After testing, they should be replaced.                 
+
+summary(Site)
+summary(SiteDescription)
+summary(Latitude)
+summary(Longitude) 
+# Get more details on character variables
+
+summary(as.factor(dt5$Site)) 
+summary(as.factor(dt5$SiteDescription))
+detach(dt5)               
+
+```
+
+## R Markdown
+
+```{r merge}
+df <- merge(dt1,dt2,by="Date")
+#View(df)
+```
+
+```{r clean date}
+names(df)[names(df) == "Date"] <- "Year"
+names(df)[names(df) == "Secchi"] <- "Clarity"
+names(df)[names(df) == "ParticulateC"] <- "Carbon_Concentration"
+names(df)[names(df) == "ParticulateN"] <- "Nitrogen_Concentration"
+names(df)[names(df) == "ParticulateP"] <- "Phosphorus_Concentration"
+names(df)[names(df) == "Chlorophyll_a"] <- "Chlorophyll"
+
+df[df[["Year"]] >= "2004-10-13", ]
+df <- df %>% filter(Year >= "2004-10-13")
+View(df)
+```
+
+```{r clean data}
+
+df <- df[ -c(1:6,7:8,10,11,13:15,17:19) ]
+```
+
+```{r clean data}
+
+df <- df[!(df$LarvalFishDensity == "" | is.na(df$LarvalFishDensity)), ]
+df <- df[!(df$Phosphorus_Concentration == "" | is.na(df$Phosphorus_Concentration)), ]
+df <- df[!(df$SuspendedSolids == "" | is.na(df$SuspendedSolids)), ]
+df <- df[!(df$TotalZooplankton == "" | is.na(df$TotalZooplankton)), ]
+
+df$LarvalFishDensity[df$LarvalFishDensity<0.1] <- 0.4
+
+min(df$LarvalFishDensity)
+max(df$LarvalFishDensity)
+mean(df$LarvalFishDensity)
+median(df$LarvalFishDensity)
+
+Q1 <- quantile(df$LarvalFishDensity, probs=c(.25, .75), na.rm = FALSE)
+iqr <- IQR(df$LarvalFishDensity)
+df <- subset(df, df$LarvalFishDensity > (Q1[1] - 1.5*iqr) & df$LarvalFishDensity < (Q1[2]+1.5*iqr))
+
+Q2 <- quantile(df$Phosphorus_Concentration, probs=c(.25, .75), na.rm = FALSE)
+iqr2 <- IQR(df$Phosphorus_Concentration)
+df <- subset(df, df$Phosphorus_Concentration > (Q2[1] - 1.5*iqr2) & df$Phosphorus_Concentration < (Q2[2]+1.5*iqr2))
+
+Q3 <- quantile(df$TotalZooplankton, probs=c(.25, .75), na.rm = FALSE)
+iqr3 <- IQR(df$TotalZooplankton)
+df <- subset(df, df$TotalZooplankton > (Q3[1] - 1.5*iqr3) & df$TotalZooplankton < (Q3[2]+1.5*iqr3))
+mean(df$LarvalFishDensity)
+
+#View(df)
+
+
+#boxplot(df$LarvalFishDensity)
+
+
+#mean(df$LarvalFishDensity)
+
+```
+
+
+
+```{r creat dummy}
+max(df$SuspendedSolids)
+min(df$SuspendedSolids)
+
+df$SuspendedSolids[df$SuspendedSolids >= 5 & df$SuspendedSolids <= 10] <- 1    
+df$SuspendedSolids[df$SuspendedSolids > 10 & df$SuspendedSolids <= 15] <- 2 
+df$SuspendedSolids[df$SuspendedSolids > 15 & df$SuspendedSolids <= 20] <- 3   
+df$SuspendedSolids[df$SuspendedSolids > 20 & df$SuspendedSolids <= 25] <- 4 
+df$SuspendedSolids[df$SuspendedSolids > 25] <- 5
+
+View(df)
+```
+
+```{r simple linear regression}
+attach(df)
+lm2 <- lm((TotalZooplankton) ~ (Phosphorus_Concentration))
+lm3 <- lm((TotalZooplankton) ~ (SuspendedSolids))
+lm4 <- lm((TotalZooplankton) ~ (LarvalFishDensity))
+summary(lm2)
+summary(lm3)
+summary(lm4)
+
+
+```
+
+
+```{r}
+cor(df)
+
+```
+
+```{r regression models}
+
+m1 <-lm((TotalZooplankton) ~ 1)
+m2 <- lm((TotalZooplankton) ~ Phosphorus_Concentration)
+m3 <- lm((TotalZooplankton) ~ Phosphorus_Concentration + SuspendedSolids)
+m4 <- lm((TotalZooplankton) ~ Phosphorus_Concentration + SuspendedSolids + (LarvalFishDensity)) 
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+
+```
+```{r remove unuseful variables}
+m4 <- lm((TotalZooplankton) ~ (Phosphorus_Concentration) + SuspendedSolids + LarvalFishDensity)
+m5 <- lm((TotalZooplankton) ~ (Phosphorus_Concentration) + SuspendedSolids + (LarvalFishDensity) + Phosphorus_Concentration :SuspendedSolids )
+
+
+summary(m4)
+summary(m5)
+
+
+#ggplot(df, aes(x=Phosphorus_Concentration, y=TotalZooplankton)) +
+  #geom_point()
+```
+
+
+
+```{r wls}
+#Since heteroscedasticity is present, we will perform weighted least squares by defining the weights in such a way that the observations with lower variance are given more weight:
+
+wt <- 1 / lm(abs(m5$residuals) ~ m5$fitted.values)$fitted.values^2
+
+wls_model <- lm((TotalZooplankton) ~ (Phosphorus_Concentration) + SuspendedSolids + (LarvalFishDensity), data = df, weights=wt)
+
+summary(wls_model)
+
+plot(wls_model)
+
+ols_plot_resid_fit(wls_model)
+
+# The weighted least squares model has a residual standard error of 1.252 compared to 29.52 in the original linear regression model.
+
+```
+
+
+
+```{r residual plots}
+#Since all evidence indicate our data is not satisfied with the assumption so we have to check the residual plot for each variable 
+
+plot(fitted(m5), resid(m5), xlab='Fitted Values', ylab='Residuals')
+res5 <- resid(m5)
+plot(density(res5))
+
+#add a horizontal line at 0 
+abline(0,0)
+
+plot(m2, col = "black")
+plot(m3, col = "black")
+plot(m4, col = "black")
+plot(m5, col = "black")
+res2 <- resid(m2)
+plot(density(res2))
+res3 <- resid(m3)
+plot(density(res3))
+res4 <- resid(m4)
+plot(density(res4))
+res5 <- resid(m5)
+plot(density(res5))
+```
+
+
+
+```{r Added_Variable Plots}
+install.packages(car)
+library(car)
+avPlots(m2)
+avPlots(m3)
+avPlots(m4)
+avPlots(m5)
+
+```
+
+
+
+```{r scatterplotMatrix}
+install.packages(car)
+library(car)
+
+scatterplotMatrix(~Phosphorus_Concentration + SuspendedSolids,  col = factor(TotalZooplankton), regLine = list(col = "pink", lwd = 3))
+scatterplotMatrix(~Phosphorus_Concentration + SuspendedSolids + LarvalFishDensity, col = factor(TotalZooplankton),regLine = list(col = "pink", lwd = 3))
+scatterplotMatrix(~TotalZooplankton+Phosphorus_Concentration + SuspendedSolids + LarvalFishDensity, col = factor(TotalZooplankton),regLine = list(col = "pink", lwd = 3))
+
+```
+
+```{r effectPlot}
+library(effects)
+# Effect plots for wls
+plot(Effect("Phosphorus_Concentration", wls_model))
+plot(Effect("SuspendedSolids", wls_model))
+plot(Effect("LarvalFishDensity", wls_model))
+
+# Effect plots m3
+plot(Effect("Phosphorus_Concentration", m3))
+plot(Effect("SuspendedSolids", m3))
+
+# Effect plots m4
+plot(Effect("Phosphorus_Concentration", m4))
+plot(Effect("SuspendedSolids", m4))
+plot(Effect("LarvalFishDensity", m4))
+
+# Effect plots m5
+plot(Effect("Phosphorus_Concentration", m5))
+plot(Effect("SuspendedSolids", m5))
+plot(Effect("LarvalFishDensity", m5))
+
+```
+
+```{r boxPlot}
+boxplot((TotalZooplankton)~Phosphorus_Concentration,data=df, main="Zooplankton vs. Phosphorus Concentration",
+   xlab="Phosphorus Concentration", ylab="(Zooplankton)")
+boxplot((TotalZooplankton)~SuspendedSolids,data=df, main="Zooplankton vs. Suspended Solids",
+   xlab="Suspended Solids", ylab="(Zooplankton)")
+boxplot((TotalZooplankton)~LarvalFishDensity,data=df, main="Zooplankton vs. Larval Fish Density",
+   xlab="Larval Fish Density", ylab="(Zooplankton)")
+boxplot((TotalZooplankton) ~ Phosphorus_Concentration + SuspendedSolids + LarvalFishDensity,data=df, main="Zooplankton vs. All variables",
+   xlab="All variables", ylab="(Zooplankton)")
+```
+
+```{r histograms}
+x <- Phosphorus_Concentration
+h<-hist(x, breaks=10, col="yellow", xlab="Phosphorus Concentration",
+   main="Phosphrus Concentration vs. Normal Curve")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+
+x <- (TotalZooplankton)
+h<-hist(x, breaks=10, col="yellow", xlab="(TotalZooplankton)",
+   main="(TotalZooplankton) vs. Normal Curve")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+
+x <- SuspendedSolids
+h<-hist(x, breaks=10, col="yellow", xlab="Suspended Solids",
+   main="Suspended Solids vs. Normal Curve")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+
+x <- LarvalFishDensity
+h<-hist(x, breaks=10, col="yellow", xlab="Larval Fish Density",
+   main="Larval Fish Density vs. Normal Curve")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+
+```
+
+```{r}
+anova(m2,m3)
+anova(m3,m4)
+anova(m4,m5)
+anova(m1,m5)
+```
