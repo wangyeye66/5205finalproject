@@ -1,0 +1,295 @@
+---
+title: "5205 Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+install.packages("dplyr")
+install.packages("mosaic")
+install.packages("haven")
+install.packages("readstata13")
+install.packages("ggplot2")
+install.packages("lubridate")
+install.packages("olsrr")
+library("olsrr")
+# Load the package
+library(lubridate)
+library(dplyr)  # to use the filter and select command
+library(mosaic) # we will use favstats command 
+library(haven)  # needed to read stata .dta files 
+library(readstata13)
+library(ggplot2)
+library(stats)
+
+
+dt1 <- read.csv(file = "~/Desktop/ActonLakeDepth (2).csv")
+dt2 <- read.csv(file = "~/Desktop/ActonLakeIntegrated.csv")
+
+
+```
+
+## R Markdown
+
+```{r merge}
+df <- merge(dt1,dt2,by="Date")
+#View(df)
+```
+
+```{r clean date}
+names(df)[names(df) == "Date"] <- "Year"
+names(df)[names(df) == "Secchi"] <- "Clarity"
+names(df)[names(df) == "ParticulateC"] <- "Carbon_Concentration"
+names(df)[names(df) == "ParticulateN"] <- "Nitrogen_Concentration"
+names(df)[names(df) == "ParticulateP"] <- "Phosphorus_Concentration"
+names(df)[names(df) == "Chlorophyll_a"] <- "Chlorophyll"
+
+df[df[["Year"]] >= "2004-10-13", ]
+df <- df %>% filter(Year >= "2004-10-13")
+View(df)
+```
+
+```{r clean data}
+
+df <- df[ -c(1:6,7:8,10,11,13:15,17:19) ]
+```
+
+```{r clean data}
+
+df <- df[!(df$LarvalFishDensity == "" | is.na(df$LarvalFishDensity)), ]
+df <- df[!(df$Phosphorus_Concentration == "" | is.na(df$Phosphorus_Concentration)), ]
+df <- df[!(df$SuspendedSolids == "" | is.na(df$SuspendedSolids)), ]
+df <- df[!(df$TotalZooplankton == "" | is.na(df$TotalZooplankton)), ]
+
+df$LarvalFishDensity[df$LarvalFishDensity<0.1] <- 0.4
+
+min(df$LarvalFishDensity)
+max(df$LarvalFishDensity)
+mean(df$LarvalFishDensity)
+median(df$LarvalFishDensity)
+
+Q1 <- quantile(df$LarvalFishDensity, probs=c(.25, .75), na.rm = FALSE)
+iqr <- IQR(df$LarvalFishDensity)
+df <- subset(df, df$LarvalFishDensity > (Q1[1] - 1.5*iqr) & df$LarvalFishDensity < (Q1[2]+1.5*iqr))
+
+Q2 <- quantile(df$Phosphorus_Concentration, probs=c(.25, .75), na.rm = FALSE)
+iqr2 <- IQR(df$Phosphorus_Concentration)
+df <- subset(df, df$Phosphorus_Concentration > (Q2[1] - 1.5*iqr2) & df$Phosphorus_Concentration < (Q2[2]+1.5*iqr2))
+
+Q3 <- quantile(df$TotalZooplankton, probs=c(.25, .75), na.rm = FALSE)
+iqr3 <- IQR(df$TotalZooplankton)
+df <- subset(df, df$TotalZooplankton > (Q3[1] - 1.5*iqr3) & df$TotalZooplankton < (Q3[2]+1.5*iqr3))
+mean(df$LarvalFishDensity)
+
+#View(df)
+
+
+#boxplot(df$LarvalFishDensity)
+
+
+#mean(df$LarvalFishDensity)
+
+```
+
+
+
+```{r creat dummy}
+max(df$SuspendedSolids)
+min(df$SuspendedSolids)
+
+df$SuspendedSolids[df$SuspendedSolids >= 5 & df$SuspendedSolids <= 10] <- 1    
+df$SuspendedSolids[df$SuspendedSolids > 10 & df$SuspendedSolids <= 15] <- 2 
+df$SuspendedSolids[df$SuspendedSolids > 15 & df$SuspendedSolids <= 20] <- 3   
+df$SuspendedSolids[df$SuspendedSolids > 20 & df$SuspendedSolids <= 25] <- 4 
+df$SuspendedSolids[df$SuspendedSolids > 25] <- 5
+
+View(df)
+```
+
+```{r simple linear regression}
+attach(df)
+lm2 <- lm((TotalZooplankton) ~ (Phosphorus_Concentration))
+lm3 <- lm((TotalZooplankton) ~ (SuspendedSolids))
+lm4 <- lm((TotalZooplankton) ~ (LarvalFishDensity))
+summary(lm2)
+summary(lm3)
+summary(lm4)
+
+
+```
+
+
+```{r}
+cor(df)
+
+```
+
+```{r regression models}
+
+m1 <-lm((TotalZooplankton) ~ 1)
+m2 <- lm((TotalZooplankton) ~ Phosphorus_Concentration)
+m3 <- lm((TotalZooplankton) ~ Phosphorus_Concentration + SuspendedSolids)
+m4 <- lm((TotalZooplankton) ~ Phosphorus_Concentration + SuspendedSolids + (LarvalFishDensity)) 
+
+summary(m1)
+summary(m2)
+summary(m3)
+summary(m4)
+
+```
+```{r remove unuseful variables}
+m4 <- lm((TotalZooplankton) ~ (Phosphorus_Concentration) + SuspendedSolids + LarvalFishDensity)
+m5 <- lm((TotalZooplankton) ~ (Phosphorus_Concentration) + SuspendedSolids + (LarvalFishDensity) + Phosphorus_Concentration :SuspendedSolids )
+
+
+summary(m4)
+summary(m5)
+
+
+#ggplot(df, aes(x=Phosphorus_Concentration, y=TotalZooplankton)) +
+  #geom_point()
+```
+
+
+
+```{r wls}
+#Since heteroscedasticity is present, we will perform weighted least squares by defining the weights in such a way that the observations with lower variance are given more weight:
+
+wt <- 1 / lm(abs(m5$residuals) ~ m5$fitted.values)$fitted.values^2
+
+wls_model <- lm((TotalZooplankton) ~ (Phosphorus_Concentration) + SuspendedSolids + (LarvalFishDensity), data = df, weights=wt)
+
+summary(wls_model)
+
+plot(wls_model)
+
+ols_plot_resid_fit(wls_model)
+
+# The weighted least squares model has a residual standard error of 1.252 compared to 29.52 in the original linear regression model.
+
+```
+
+
+
+```{r residual plots}
+#Since all evidence indicate our data is not satisfied with the assumption so we have to check the residual plot for each variable 
+
+plot(fitted(m5), resid(m5), xlab='Fitted Values', ylab='Residuals')
+res5 <- resid(m5)
+plot(density(res5))
+
+#add a horizontal line at 0 
+abline(0,0)
+
+plot(m2, col = "black")
+plot(m3, col = "black")
+plot(m4, col = "black")
+plot(m5, col = "black")
+res2 <- resid(m2)
+plot(density(res2))
+res3 <- resid(m3)
+plot(density(res3))
+res4 <- resid(m4)
+plot(density(res4))
+res5 <- resid(m5)
+plot(density(res5))
+```
+
+
+
+```{r Added_Variable Plots}
+install.packages(car)
+library(car)
+avPlots(m2)
+avPlots(m3)
+avPlots(m4)
+avPlots(m5)
+
+```
+
+
+
+```{r scatterplotMatrix}
+install.packages(car)
+library(car)
+
+scatterplotMatrix(~Phosphorus_Concentration + SuspendedSolids,  col = factor(TotalZooplankton), regLine = list(col = "pink", lwd = 3))
+scatterplotMatrix(~Phosphorus_Concentration + SuspendedSolids + LarvalFishDensity, col = factor(TotalZooplankton),regLine = list(col = "pink", lwd = 3))
+scatterplotMatrix(~TotalZooplankton+Phosphorus_Concentration + SuspendedSolids + LarvalFishDensity, col = factor(TotalZooplankton),regLine = list(col = "pink", lwd = 3))
+
+```
+
+```{r effectPlot}
+library(effects)
+# Effect plots for wls
+plot(Effect("Phosphorus_Concentration", wls_model))
+plot(Effect("SuspendedSolids", wls_model))
+plot(Effect("LarvalFishDensity", wls_model))
+
+# Effect plots m3
+plot(Effect("Phosphorus_Concentration", m3))
+plot(Effect("SuspendedSolids", m3))
+
+# Effect plots m4
+plot(Effect("Phosphorus_Concentration", m4))
+plot(Effect("SuspendedSolids", m4))
+plot(Effect("LarvalFishDensity", m4))
+
+# Effect plots m5
+plot(Effect("Phosphorus_Concentration", m5))
+plot(Effect("SuspendedSolids", m5))
+plot(Effect("LarvalFishDensity", m5))
+
+```
+
+```{r boxPlot}
+boxplot((TotalZooplankton)~Phosphorus_Concentration,data=df, main="Zooplankton vs. Phosphorus Concentration",
+   xlab="Phosphorus Concentration", ylab="(Zooplankton)")
+boxplot((TotalZooplankton)~SuspendedSolids,data=df, main="Zooplankton vs. Suspended Solids",
+   xlab="Suspended Solids", ylab="(Zooplankton)")
+boxplot((TotalZooplankton)~LarvalFishDensity,data=df, main="Zooplankton vs. Larval Fish Density",
+   xlab="Larval Fish Density", ylab="(Zooplankton)")
+boxplot((TotalZooplankton) ~ Phosphorus_Concentration + SuspendedSolids + LarvalFishDensity,data=df, main="Zooplankton vs. All variables",
+   xlab="All variables", ylab="(Zooplankton)")
+```
+
+```{r histograms}
+x <- Phosphorus_Concentration
+h<-hist(x, breaks=10, col="yellow", xlab="Phosphorus Concentration",
+   main="Phosphrus Concentration vs. Normal Curve")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+
+x <- (TotalZooplankton)
+h<-hist(x, breaks=10, col="yellow", xlab="(TotalZooplankton)",
+   main="(TotalZooplankton) vs. Normal Curve")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+
+x <- SuspendedSolids
+h<-hist(x, breaks=10, col="yellow", xlab="Suspended Solids",
+   main="Suspended Solids vs. Normal Curve")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+
+x <- LarvalFishDensity
+h<-hist(x, breaks=10, col="yellow", xlab="Larval Fish Density",
+   main="Larval Fish Density vs. Normal Curve")
+xfit<-seq(min(x),max(x),length=40)
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x))
+yfit <- yfit*diff(h$mids[1:2])*length(x)
+lines(xfit, yfit, col="blue", lwd=2)
+
+```
+
+```{r}
+anova(m2,m3)
+anova(m3,m4)
+anova(m4,m5)
+anova(m1,m5)
+```
