@@ -1,0 +1,176 @@
+---
+title: "GU4205/5205-Linear Regression Models-Lab3b"
+author: 'Authors: Dr. Banu Baydil, Dr. Ronald Neath'
+date: "Fall 2022"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+# Section 1: Regression Diagnostics
+
+## Residual Plots 
+
+In this section we will work with the Fuel dataset. 
+
+
+```{r, message=FALSE}
+library(alr4); 
+rm(list=ls());
+dim(fuel2001); 
+names(fuel2001);
+```
+
+
+Next we will create the following dataset:
+
+
+```{r}
+Data <- data.frame(Tax=fuel2001$Tax)
+Data$Dlic <- 1000 * fuel2001$Drivers / fuel2001$Pop #Drivers/population
+Data$Income <- fuel2001$Income / 1000 #in units of 1000s
+Data$logMiles <- log(fuel2001$Miles) #log(miles)
+Data$Fuel <- 1000 * fuel2001$FuelC / fuel2001$Pop #Fuel/population
+rownames(Data) <- rownames(fuel2001)
+```
+
+
+Next we will fit the MLR model using R function lm(), save fit as m1, and obtain residual plots:
+
+
+```{r}
+m1 <- lm(Fuel ~ Tax + Dlic + Income + logMiles, data=Data)
+summary(m1)
+residualPlots(m1, id=T) 
+```
+
+
+## Curvature
+
+The R function residualPlots() does two things:
+
+1. Plot of e.hat vs. x for each x in the model, and e.hat vs. y.hat 
+
+2. Returns tests of NH: beta_jj = 0, that is, tests for need of a quadratic term, in each quantitative predictor; and also tests for quadratic term in fitted values, called Tukey's test.
+
+
+According to the output of above residualPlots() function, below ANOVA function should also give p-value = 0.18463 
+
+
+```{r}
+anova(m1, update(m1, ~ . + I(logMiles^2)))  
+```
+
+
+## Outliers and Influence:
+
+In this section, we will work with the Forbes dataset.
+
+
+```{r}
+library(alr4); rm(list=ls());
+Forbes
+scatterplot(lpres ~ bp, data=Forbes, boxplots=F, smooth=F, id=T)
+```
+
+
+Is case 12 an outlier?
+
+
+Method 1: We can create dummy variable, special for case 12:
+
+
+```{r}
+n <- dim(Forbes)[1]; n;
+u <- c(rep(0,11), 1, rep(0,n-12));  # 1 for case 12, 0 otherwise
+m1 <- lm(lpres ~ bp, data=Forbes)
+m2 <- update(m1, ~ . + u)
+summary(m2)
+```
+
+
+The p-value is 6.09 x 10^(-9). We need to multiply by 17 for Bonferroni correction, and yes, it seems that case 12 is an outlier. 
+
+
+Alternatively, we can compute:
+
+
+```{r}
+h <- hatvalues(m1)
+e.hat <- resid(m1) 
+sigma.hat <- sigma(m1)
+r <- e.hat / (sigma.hat * sqrt(1-h))
+t <- r * sqrt((n - 2 - 1) / (n - 2 - r^2))
+r[12]; t[12];
+p.val <- 2*(1 - pt(abs(t[12]), df=n-2-1))
+p.val 
+min(1, p.val*n) 
+```
+
+
+Note that in the last step above, we multiply P-value by 17 for Bonferroni correction. Once again, case 12 is an outlier.
+
+
+Is case 12 an influential outlier?
+
+
+Let us look at Cook's distance, using influnceIndexPlot as we have seen in class:
+
+
+```{r}
+m.all <- lm(lpres ~ bp, data=Forbes)
+influenceIndexPlot(m.all, vars=c("Cook","Stud","hat"))
+outlierTest(m.all)
+m_12 <- update(m.all, subset=-12) # when we delete case 12
+influenceIndexPlot(m_12, vars=c("Cook","Stud","hat")) 
+outlierTest(m_12, cutoff=.99)
+```
+
+
+We can see below that case 12 does not seem to be influential:
+
+
+```{r}
+plot(lpres ~ bp, data=Forbes)
+abline(m.all, lty=2)
+abline(m_12, col="red") 
+```
+
+
+# Section 2: Stepwise Variable Selection 
+
+In this section, we will continue to work with the Highway dataset:
+
+
+```{r}
+library(alr4); 
+rm(list=ls());
+dim(Highway); 
+names(Highway);
+Highway$sigs1 <- (Highway$len*Highway$sigs + 1) / Highway$len
+dim(Highway); 
+names(Highway);
+```
+
+
+We will first carry out forward selection:
+
+
+```{r}
+m.0 <- lm(log(rate) ~ log(len), data=Highway)
+m.full <- lm(log(rate) ~ log(len) + log(adt) + log(trks) + slim + shld + log(sigs1) + lane + lwid 
+             + acpt + itg + htype, data=Highway)
+
+scope <- list(lower=formula(m.0), upper=formula(m.full))
+
+step(m.0, direction="forward", scope=scope)
+```
+
+
+We will next carry out backward selection:
+
+
+```{r}
+step(m.full, direction="backward", scope=scope)
+```
+

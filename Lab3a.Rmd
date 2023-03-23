@@ -1,0 +1,164 @@
+---
+title: "GU4205/5205-Linear Regression Models-Lab3a"
+author: 'Authors: Dr. Banu Baydil, Dr. Ronald Neath'
+date: "Fall 2022"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+# Section 1: Transformations-Simple Linear Regression
+
+## Transforming the Predictor Variable 
+In this section we will continue to work with we will work with the ufcwc dataset (Western red cedar trees). 
+
+
+```{r, message=FALSE}
+library(alr4); 
+rm(list=ls());
+dim(ufcwc); 
+names(ufcwc);
+scatterplot(Height ~ Dbh, data=ufcwc)
+```
+
+
+Consider x = Dbh, x = log(Dbh), and x = 1/Dbh, plot the results, and note that log looks like it is the best of the three:
+
+
+```{r}
+m1 <- lm(Height ~ Dbh, data=ufcwc)
+m0 <- update(m1, ~ log(Dbh))
+mI <- update(m1, ~ I(1/Dbh))
+plot(Height ~ Dbh, data=ufcwc)
+range(ufcwc$Dbh)
+newdata <- data.frame(Dbh=seq(100, 1015, 5))
+lines(newdata$Dbh, predict(m1,newdata), col="blue", lty=2, lwd=2)
+lines(newdata$Dbh, predict(m0,newdata), col="darkgreen", lwd=2)
+lines(newdata$Dbh, predict(mI,newdata), col="red", lty=2, lwd=2)
+```
+
+
+The R function invTranPlot automates this search, and gives a graphical summary of the result. Note that .05 is the 'optimal' power transformation, and as we talked in class, we can choose log transformation here:
+
+
+```{r}
+invTranPlot(Height ~ Dbh, data=ufcwc)
+```
+
+
+## Transforming the Response Variable:
+
+Method 1: Note that using the Box-Cox method, one can see that a response transformation is probably not useful when the predictor is x=Dbh.
+
+
+```{r}
+with(ufcwc, boxCox(Height ~ Dbh))
+```
+
+
+Next, let us try it with log(Dbh) as regressor, and note that in this case square root transformation of the response would be suitable:
+
+
+```{r}
+with(ufcwc, boxCox(Height ~ log(Dbh)))
+with(ufcwc, boxCox(Height ~ log(Dbh), lambda=seq(0,1,.05))) # Zoom in the result
+```
+
+
+Next, let us try Inverse Fitted Value Plot method. Let us recall the steps from class:
+
+
+Step 1: Fit y ~ x with no transformation
+
+Step 2: Plot y.hat versus y, the 'inverse fitted value plot' described on textbook pg 196
+
+Step 3: Find the transformation of y that linearizes y.hat ~ y, by the predictor transformation method described above (RSS-minimizing)
+
+
+```{r}
+m1 <- lm(Height ~ Dbh, data=ufcwc) #with x=Dbh
+invTranPlot(fitted(m1) ~ Height, data=ufcwc) #Transformation of response is not useful
+m1 <- lm(Height ~ log(Dbh), data=ufcwc) #with x=log(Dbh)
+invTranPlot(fitted(m1) ~ Height, data=ufcwc) #Optimal lambda=0.23 
+invTranPlot(fitted(m1) ~ Height, data=ufcwc, lambda=c(0,.5)) 
+```
+As we see above, as before, we can use the square root transformation.
+
+We can also use the R function inverseResponsePlot:
+
+
+```{r}
+# We first see that transformation of response is not useful when x=Dbh
+m1 <- lm(Height ~ Dbh, data=ufcwc) 
+inverseResponsePlot(m1)
+
+#As before we can use the square root transformation is useful when x=log(Bbh)
+m1 <- lm(Height ~ log(Dbh), data=ufcwc) # with x=log(Dbh)
+inverseResponsePlot(m1)#Optimal lambda=0.23 
+inverseResponsePlot(m1, lambda=c(0,.5)) 
+
+```
+
+
+# Section 2: Transformations-Multiple Linear Regression
+
+In this section we will work with the Highway dataset. Recall from class that observations are stretches of highway, predictor variables are different features of the road, and the response variable is accidents per million vehicle miles (rate). 
+
+
+```{r}
+library(alr4); 
+rm(list=ls());
+dim(Highway); 
+names(Highway);
+help(Highway)
+```
+
+
+As we have seen in class, the predictor variable sigs is number of signals per mile. Many roads have zero signals, and we can not transform zeros, therefore we add a small constant:
+
+
+```{r}
+Highway$sigs1 <- (Highway$sigs*Highway$len + 1) / Highway$len
+pairs(rate ~ len + adt + trks + slim + shld + sigs1, Highway, cex=.75)
+```
+
+
+## Transforming the Predictors
+
+We will use Multivariate Box-Cox method. We we have seen in class, also see "The range rule" on textbook pg. 188, we will not transform the predictor variable slim.
+
+
+```{r}
+a <- powerTransform(cbind(len, adt, trks, shld, sigs1) ~ 1, data=Highway)
+summary(a)
+a$roundlam #Looks like on needs logs of all predictors except shld variable
+testTransform(a, lambda=a$roundlam) #Yes, logs of all predictors except shld variable
+pairs( ~ len + adt + trks + slim + shld + sigs1, data=Highway, cex=.75) #Predictors only, before any transformation
+pairs( ~ log(len) + log(adt) + log(trks) + slim + shld + log(sigs1), 
+       data=Highway, cex=.75) # Scatterplot matrix of proposed regressors
+```
+
+
+## Transforming the Response Variable 
+
+We will first fit regression to untransformed response and use the methods we have covered in class, Box-Cox method, and the Inverse Response Plot Method:
+
+
+```{r}
+m1 <- lm(rate ~ log(len) + log(adt) + log(trks) + slim + shld + log(sigs1), data=Highway)
+boxCox(m1) #Suggests a log transformation
+inverseResponsePlot(m1)#also suggests log transformation 
+```
+
+
+In general, the two approaches will not give the same answer, like they don't here. Not the optimal lambda values are different, but they do suggest the same course of action. 
+
+Next we update the model with log(rate) as the response:
+
+
+```{r}
+m1 <- update(m1, log(rate) ~ . )
+```
+
+
+
